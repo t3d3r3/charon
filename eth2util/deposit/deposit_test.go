@@ -52,7 +52,7 @@ func TestMarshalDepositData(t *testing.T) {
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddrs[i], eth2util.Goerli.Name)
+		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddrs[i], eth2util.Goerli.Name, false)
 		require.NoError(t, err)
 
 		sig, err := tblsv2.Sign(sk, msgRoot[:])
@@ -62,7 +62,7 @@ func TestMarshalDepositData(t *testing.T) {
 		pubkeys = append(pubkeys, pk)
 	}
 
-	actual, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddrs, eth2util.Goerli.Name)
+	actual, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddrs, eth2util.Goerli.Name, false)
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, actual)

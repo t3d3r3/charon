@@ -558,7 +558,7 @@ func signDepositData(shares []share, shareIdx int, withdrawalAddresses []string,
 			return nil, nil, err
 		}
 
-		msg, err := deposit.GetMessageSigningRoot(pubkey, withdrawalHex, network)
+		msg, err := deposit.GetMessageSigningRoot(pubkey, withdrawalHex, network, false)
 		if err != nil {
 			return nil, nil, err
 		}

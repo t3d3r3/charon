@@ -38,6 +38,8 @@ var (
 	// the amount of ether in gwei required to activate a validator.
 	validatorAmt = eth2p0.Gwei(32000000000)
 
+	rocketpoolValidatorAmt = eth2p0.Gwei(16000000000)
+
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
 
@@ -45,7 +47,7 @@ var (
 )
 
 // getMessageRoot returns a deposit message hash root created by the parameters.
-func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root, error) {
+func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, rocketpool bool) (eth2p0.Root, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
 		return eth2p0.Root{}, err
@@ -56,6 +58,10 @@ func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 		WithdrawalCredentials: creds[:],
 		Amount:                validatorAmt,
 	}
+	if rocketpool {
+		dm.Amount = rocketpoolValidatorAmt
+	}
+
 	hashRoot, err := dm.HashTreeRoot()
 	if err != nil {
 		return eth2p0.Root{}, errors.Wrap(err, "deposit message hash root")
@@ -65,7 +71,7 @@ func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 }
 
 // MarshalDepositData serializes a list of deposit data into a single file.
-func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddrs []string, network string) ([]byte, error) {
+func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddrs []string, network string, rocketpool bool) ([]byte, error) {
 	if len(pubkeys) != len(withdrawalAddrs) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -83,13 +89,13 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLS
 		}
 
 		// calculate depositMessage root
-		msgRoot, err := getMessageRoot(pubkeys[i], withdrawalAddrs[i])
+		msgRoot, err := getMessageRoot(pubkeys[i], withdrawalAddrs[i], rocketpool)
 		if err != nil {
 			return nil, err
 		}
 
 		// Verify deposit data signature
-		sigData, err := GetMessageSigningRoot(pubkeys[i], withdrawalAddrs[i], network)
+		sigData, err := GetMessageSigningRoot(pubkeys[i], withdrawalAddrs[i], network, rocketpool)
 		if err != nil {
 			return nil, err
 		}
@@ -102,12 +108,18 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLS
 			return nil, errors.Wrap(err, "invalid deposit data signature")
 		}
 
+		depositAmt := validatorAmt
+		if rocketpool {
+			depositAmt = rocketpoolValidatorAmt
+		}
+
 		dd := eth2p0.DepositData{
 			PublicKey:             pubkeys[i],
 			WithdrawalCredentials: creds[:],
-			Amount:                validatorAmt,
+			Amount:                depositAmt,
 			Signature:             sig,
 		}
+
 		dataRoot, err := dd.HashTreeRoot()
 		if err != nil {
 			return nil, errors.Wrap(err, "deposit data hash root")
@@ -116,7 +128,7 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLS
 		ddList = append(ddList, depositDataJSON{
 			PubKey:                fmt.Sprintf("%x", pubkeys[i]),
 			WithdrawalCredentials: fmt.Sprintf("%x", creds),
-			Amount:                uint64(validatorAmt),
+			Amount:                uint64(depositAmt),
 			Signature:             fmt.Sprintf("%x", sig),
 			DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
 			DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
@@ -157,8 +169,8 @@ func getDepositDomain(forkVersion eth2p0.Version) (eth2p0.Domain, error) {
 }
 
 // GetMessageSigningRoot returns the deposit message signing root created by the provided parameters.
-func GetMessageSigningRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network string) ([32]byte, error) {
-	msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
+func GetMessageSigningRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network string, rocketpool bool) ([32]byte, error) {
+	msgRoot, err := getMessageRoot(pubkey, withdrawalAddr, rocketpool)
 	if err != nil {
 		return [32]byte{}, err
 	}

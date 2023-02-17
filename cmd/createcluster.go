@@ -65,6 +65,7 @@ type clusterConfig struct {
 	WithdrawalAddr string
 	Network        string
 	NumDVs         int
+	Rocketpool     bool
 
 	SplitKeys    bool
 	SplitKeysDir string
@@ -110,6 +111,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
+	flags.BoolVar(&config.Rocketpool, "rocketpool", false, "Sets deposit data amount to 16ETH as required for rocketpool operators.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -196,7 +198,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Write deposit-data file
-	if err = writeDepositData(def.WithdrawalAddresses(), conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
+	if err = writeDepositData(def.WithdrawalAddresses(), conf.ClusterDir, def.ForkVersion, numNodes, secrets, conf.Rocketpool); err != nil {
 		return err
 	}
 
@@ -231,7 +233,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 }
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
-func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string, network string) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string, network string, rocketpool bool) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -251,7 +253,7 @@ func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string,
 			return nil, nil, errors.Wrap(err, "secret to pubkey")
 		}
 
-		msgRoot, err := deposit.GetMessageSigningRoot(eth2p0.BLSPubKey(pk), withdrawalAddr, network)
+		msgRoot, err := deposit.GetMessageSigningRoot(eth2p0.BLSPubKey(pk), withdrawalAddr, network, rocketpool)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -336,7 +338,7 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateK
 }
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []tblsv2.PrivateKey) error {
+func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []tblsv2.PrivateKey, rocketpool bool) error {
 	if len(secrets) != len(withdrawalAddresses) {
 		return errors.New("insufficient withdrawal addresses")
 	}
@@ -347,13 +349,13 @@ func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersi
 	}
 
 	// Create deposit message signatures
-	pubkeys, sigs, err := signDepositDatas(secrets, withdrawalAddresses, network)
+	pubkeys, sigs, err := signDepositDatas(secrets, withdrawalAddresses, network, rocketpool)
 	if err != nil {
 		return err
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddresses, network)
+	bytes, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddresses, network, rocketpool)
 	if err != nil {
 		return err
 	}
