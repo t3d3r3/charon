@@ -28,9 +28,6 @@ type DistValidator struct {
 	// PubShares are the public keys corresponding to each node's secret key share.
 	// It can be used to verify a partial signature created by any node in the cluster.
 	PubShares [][]byte `json:"public_shares,omitempty" ssz:"CompositeList[256],Bytes48" lock_hash:"1"`
-
-	// DepositData is the validator deposit data.
-	DepositData DepositData `json:"deposit_data,omitempty" ssz:"Composite" lock_hash:"2"`
 }
 
 // PublicKey returns the validator BLS group public key.
@@ -55,18 +52,11 @@ type distValidatorJSONv1x1 struct {
 	FeeRecipientAddress ethHex   `json:"fee_recipient_address,omitempty"`
 }
 
-// distValidatorJSONv1x2to5 is the json formatter of DistValidator for versions v1.2.0 to v1.5.0.
-type distValidatorJSONv1x2to5 struct {
+// distValidatorJSONv1x2 is the json formatter of DistValidator for versions v1.2.0 and later.
+type distValidatorJSONv1x2 struct {
 	PubKey              ethHex   `json:"distributed_public_key"`
 	PubShares           []ethHex `json:"public_shares,omitempty"`
 	FeeRecipientAddress ethHex   `json:"fee_recipient_address,omitempty"`
-}
-
-// distValidatorJSONv1x6 is the json formatter of DistValidator for versions v1.6.0 or later.
-type distValidatorJSONv1x6 struct {
-	PubKey      ethHex          `json:"distributed_public_key"`
-	PubShares   []ethHex        `json:"public_shares,omitempty"`
-	DepositData depositDataJSON `json:"deposit_data,omitempty"`
 }
 
 func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValidator {
@@ -93,7 +83,7 @@ func distValidatorsToV1x1(distValidators []DistValidator) []distValidatorJSONv1x
 	return resp
 }
 
-func distValidatorsFromV1x2to5(distValidators []distValidatorJSONv1x2to5) []DistValidator {
+func distValidatorsFromV1x2orLater(distValidators []distValidatorJSONv1x2) []DistValidator {
 	var resp []DistValidator
 	for _, dv := range distValidators {
 		var shares [][]byte
@@ -109,52 +99,17 @@ func distValidatorsFromV1x2to5(distValidators []distValidatorJSONv1x2to5) []Dist
 	return resp
 }
 
-func distValidatorsToV1x2to5(distValidators []DistValidator) []distValidatorJSONv1x2to5 {
-	var resp []distValidatorJSONv1x2to5
+func distValidatorsToV1x2orLater(distValidators []DistValidator) []distValidatorJSONv1x2 {
+	var resp []distValidatorJSONv1x2
 	for _, dv := range distValidators {
 		var shares []ethHex
 		for _, share := range dv.PubShares {
 			shares = append(shares, share)
 		}
 
-		resp = append(resp, distValidatorJSONv1x2to5{
+		resp = append(resp, distValidatorJSONv1x2{
 			PubKey:    dv.PubKey,
 			PubShares: shares,
-		})
-	}
-
-	return resp
-}
-
-func distValidatorsFromV1x6orLater(distValidators []distValidatorJSONv1x6) []DistValidator {
-	var resp []DistValidator
-	for _, dv := range distValidators {
-		var shares [][]byte
-		for _, share := range dv.PubShares {
-			shares = append(shares, share)
-		}
-		resp = append(resp, DistValidator{
-			PubKey:      dv.PubKey,
-			PubShares:   shares,
-			DepositData: depositDataFromJSON(dv.DepositData),
-		})
-	}
-
-	return resp
-}
-
-func distValidatorsToV1x6OrLater(distValidators []DistValidator) []distValidatorJSONv1x6 {
-	var resp []distValidatorJSONv1x6
-	for _, dv := range distValidators {
-		var shares []ethHex
-		for _, share := range dv.PubShares {
-			shares = append(shares, share)
-		}
-
-		resp = append(resp, distValidatorJSONv1x6{
-			PubKey:      dv.PubKey,
-			PubShares:   shares,
-			DepositData: depositDataToJSON(dv.DepositData),
 		})
 	}
 
